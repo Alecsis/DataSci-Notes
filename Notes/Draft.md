@@ -2,7 +2,31 @@
 
 ## Ex3 : Colored MNIST
 
+Par défaut :
 
+CrossEntropy
+epochs 10
+batchs 10
+LR 0.01
+SGD 
+
+CrossEntropy
+epochs 10
+batchs 16
+LR 0.003
+Adamn
+-> Loss 4.0497
+-> valset  7.96%
+-> testset 8.02%
+
+CrossEntropy
+epochs 20
+batchs 16
+LR 0.03
+SGD
+-> Loss 0.0180
+-> valset  98.55%
+-> testset 98.81%
 
 ## Ex2 : MNIST
 
