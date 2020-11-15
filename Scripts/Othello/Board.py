@@ -10,15 +10,19 @@ class Board():
     def __init__(self):
         self.player = 1 # White first
         self.state = np.zeros((8, 8), dtype=int) # Grid representation
+        self.memory = [] # To undo moves
         self.reset() # Clear & populates central cells
 
+
     def reset(self):
+        self.memory = []
         self.state = np.zeros((8, 8), dtype=int)
         self.set_cell(3, 3, 1)
         self.set_cell(4, 4, 1)
         self.set_cell(3, 4, -1)
         self.set_cell(4, 3, -1)
         self.player = 1 # White first
+        return self.state
     
     def get_cell(self, i, j):
         return self.state[i, j]
@@ -32,7 +36,21 @@ class Board():
         self.state[i, j] = -self.state[i, j]
 
     def step(self, action):
+        # Save state in memory
+        self.memory.append((np.copy(self.state), self.player))
+
+        # If player skip turn when he could move
+        if action == None:
+            if self.can_player_move():
+                return self.state, -10000, True, "ILLEGAL_MOVE"
+            else:
+                self.changes_player()
+                return self.state, 1, False, ""
+
         (i, j) = action
+
+        if self.get_cell(i, j) != 0:
+            return self.state, -10000, True, "ILLEGAL_MOVE"
 
         # Get nb of cells flipped by the action
         flips = []
@@ -41,11 +59,10 @@ class Board():
 
         # If none it's illegal
         if len(flips) == 0:
-            return self.state, -100, True, "ILLEGAL_MOVE"
+            return self.state, -10000, True, "ILLEGAL_MOVE"
 
-        # If legal 
+        # Apply and flip cells 
         self.set_cell(i, j, self.player)
-        print(flips)
         for (i, j) in flips:
             self.flip_cell(i, j)
         
@@ -58,6 +75,12 @@ class Board():
 
         return self.state, 1, False, ""
     
+    def undo(self):
+        if len(self.memory) != 0:
+            (state, player) = self.memory.pop()
+            self.player = player
+            self.state = state
+
     def changes_player(self):
         # Changes the token color (Black 1 or White -1)
         self.player = -self.player
@@ -79,6 +102,8 @@ class Board():
     
     def sample(self):
         actions = self.get_possible_actions()
+        if len(actions) == 0:
+            return None
         return random.choice(actions)
 
     def get_flips_in_dir(self, i, j, di, dj):
@@ -110,6 +135,9 @@ class Board():
             return -1
         else:
             return 0
+    
+    def get_observation():
+        observation = np.zeros((2, 8, 8), dtype=int)
 
 if __name__ == "__main__":
     env = Board()
