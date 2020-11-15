@@ -112,7 +112,8 @@ class Board():
         actions = self.get_possible_actions()
         if len(actions) == 0:
             return None
-        return random.choice(actions)
+        # return random.choice(actions)
+        return actions[0]
 
     def get_flips_in_dir(self, i, j, di, dj):
         # Move a step forward in the direction
