@@ -1,6 +1,19 @@
 from Board import Board
 import pygame
 
+###############################################################################
+#                       OTHELLO by Alexis F
+###############################################################################
+# 
+# Click on the grid to place token
+# 
+# Press RETURN key to play random move
+# Press R key to reset the board
+# Press BACKSPACE key to undo move
+# Press ESCAPE to quit
+# 
+###############################################################################
+
 
 # Constants
 CELL_SIZE = 32
