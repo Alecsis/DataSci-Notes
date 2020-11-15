@@ -72,12 +72,12 @@ class Game():
 
     def cell_clicked(self, i, j):
         action = (i, j)
+        self.do(action)
+
+    def do(self, action):
         observation, reward, done, info = self.board.step(action)
         if done:
             self.gameover = True
-    
-    def do(self, action):
-        self.memory.append(self.board.state)
     
     def undo(self):
         self.board.undo()
