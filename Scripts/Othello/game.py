@@ -1,4 +1,4 @@
-from Board import Board
+from Board import Board, Signal
 import pygame
 
 ###############################################################################
@@ -20,8 +20,10 @@ CELL_SIZE = 32
 BOARD_COLORS = {}
 BOARD_COLORS["BLACK"] = (0, 0, 0)
 BOARD_COLORS["BOARD"] = (0, 128, 0)
+BOARD_COLORS["ALT_BOARD"] = (0, 64, 0)
 BOARD_COLORS["WHITE"] = (255, 255, 255)
 BOARD_COLORS["GAME_OVER"] = (128, 128, 0)
+BOARD_COLORS["ALT_GAME_OVER"] = (16, 16, 0)
 
 class Game():
 
@@ -29,11 +31,13 @@ class Game():
         self.board = Board()
         self.screen = pygame.display.set_mode((256, 256 + 32))
         self.mousepressed = False
+        self.font = pygame.font.Font('Scripts/Othello/pixel.ttf', 16)
         self.reset()
 
     def reset(self):
         self.running = True
         self.gameover = False
+        self.info = ""
         self.board.reset()
 
     def run(self):
@@ -75,26 +79,47 @@ class Game():
         self.do(action)
 
     def do(self, action):
-        observation, reward, done, info = self.board.step(action)
-        if done:
-            self.gameover = True
+        observation, signal = self.board.step(action)
+        self.process_signal(signal)
     
     def undo(self):
         self.board.undo()
+        self.info = ""
         if self.gameover:
             self.gameover = False
 
     def step_random(self):
         action = self.board.sample()
-        observation, reward, done, info = self.board.step(action)
-        if done:
+        observation, signal = self.board.step(action)
+        self.process_signal(signal)
+    
+    def process_signal(self, signal: Signal):
+        if signal is Signal.GAME_OVER:
             self.gameover = True
+            winner = self.board.get_winner()
+            white_score = self.board.get_white_score()
+            black_score = self.board.get_black_score()
+            if winner == 1:
+                self.info = "Winner is WHITE: {}/{}".format(white_score, black_score)
+            elif winner == -1:
+                self.info = "Winner is BLACK: {}/{}".format(white_score, black_score)
+            else:
+                self.info = "Game is DRAW: {}/{}".format(white_score, black_score)
+        elif signal is Signal.ILLEGAL_MOVE:
+            self.gameover = True
+            self.info = "Illegal Move"
+            # Current player is the one that didn't play
+            if self.board.player == -1:
+                self.info += " ! Winner is WHITE"
+            elif self.board.player == 1:
+                self.info += " ! Winner is BLACK"
 
     def render(self):
+        # Fill screen with color
         if self.gameover:
-            self.screen.fill((32, 32, 0))
+            self.screen.fill(BOARD_COLORS["ALT_GAME_OVER"])
         else:
-            self.screen.fill((0, 64, 0))
+            self.screen.fill(BOARD_COLORS["ALT_BOARD"])
 
         # Draw mouse rect
         (mouse_x, mouse_y) = pygame.mouse.get_pos()
@@ -131,19 +156,33 @@ class Game():
         # Display player
         rect = pygame.Rect(2, 256 + 2, 256 - 4, 32 - 4)
         color = (0, 0, 0)
-        if self.board.player == 1:
-            color = BOARD_COLORS["WHITE"] 
-        if self.board.player == -1:
-            color = BOARD_COLORS["BLACK"]
+        altcolor = (1, 1, 1)
+        if self.gameover:
+            color = BOARD_COLORS["GAME_OVER"]
+            altcolor = BOARD_COLORS["ALT_GAME_OVER"]
+        else:
+            if self.board.player == 1:
+                color = BOARD_COLORS["WHITE"] 
+                altcolor = BOARD_COLORS["BLACK"]
+            if self.board.player == -1:
+                color = BOARD_COLORS["BLACK"]
+                altcolor = BOARD_COLORS["WHITE"]
         pygame.draw.rect(self.screen, color, rect)
         
+        # Display information
+        textsurface = self.font.render(self.info, False, altcolor)
+        text_x = 128 - textsurface.get_width() / 2
+        text_y = 256 + 16 - textsurface.get_height() / 2
+        self.screen.blit(textsurface, (text_x, text_y))
 
+        # Render to screen
         pygame.display.flip()
 
 
 def main():
     # Init pygame
     pygame.init()
+    pygame.font.init() 
 
     # Run game
     game = Game()
