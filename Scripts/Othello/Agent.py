@@ -18,8 +18,8 @@ class Model(nn.Module):
         self.input_layer = nn.Conv2d(2, 128, 3, padding=1)
         self.hidden_layer_1 = nn.Conv2d(128, 128, 3, padding=1)
         self.hidden_layer_21 = nn.Conv2d(128, 128, 3, padding=1)
-        self.hidden_layer_22 = nn.Conv2d(128, 128, 3, padding=1)
-        self.hidden_layer_23 = nn.Conv2d(128, 128, 3, padding=1)
+        # self.hidden_layer_22 = nn.Conv2d(128, 128, 3, padding=1)
+        # self.hidden_layer_23 = nn.Conv2d(128, 128, 3, padding=1)
         self.hidden_layer_3 = nn.Linear(128*8*8, 128*8)
         self.hidden_layer_4 = nn.Linear(128*8, 128)
         self.output_layer = nn.Linear(128, 65)
@@ -28,8 +28,8 @@ class Model(nn.Module):
         x = F.relu(self.input_layer(x))
         x = F.relu(self.hidden_layer_1(x))
         x = F.relu(self.hidden_layer_21(x))
-        x = F.relu(self.hidden_layer_22(x))
-        x = F.relu(self.hidden_layer_23(x))
+        # x = F.relu(self.hidden_layer_22(x))
+        # x = F.relu(self.hidden_layer_23(x))
         x = x.view(-1, self.num_flat_features(x))
         x = F.relu(self.hidden_layer_3(x))
         x = F.relu(self.hidden_layer_4(x))
@@ -55,7 +55,7 @@ class Memory(object):
 
     def remember(self, m):
         if len(self.memory) <= self.max_memory:  # if not full
-            self.memory.append(m)  # store element m at the end
+            self.memory.appdone(m)  # store element m at the end
         else:
             self.memory.pop(0)  # remove the first element
             self.memory.append(m)  # store element m at the end
@@ -65,7 +65,7 @@ class Memory(object):
 
 
 class AgentTorch():
-    def __init__(self, epsilon=0.3, discount=0.99, batch_size=50):
+    def __init__(self, epsilon=0.3, discount=0.99, batch_size=50, learning_rate=0.3):
         self.epsilon = epsilon
         self.memory = Memory()
         # Discount for Q learning (gamma)
@@ -74,93 +74,76 @@ class AgentTorch():
         self.model = Model()
         self.model.to(device)
         self.criterion = torch.nn.MSELoss()
-        # self.criterion = torch.nn.CrossEntropyLoss()
-        self.optimizer = torch.optim.SGD(self.model.parameters(), lr=0.3)
+        self.optimizer = torch.optim.SGD(self.model.parameters(), lr=learning_rate)
 
     def set_epsilon(self, e):
         self.epsilon = e
 
     def act(self, s, train=True):
         """ This function should return the next action to do:
-        an integer between 0 and 4 (not included) with a random exploration of epsilon"""
+        an integer between 0 and 65 (not included) with a random exploration of epsilon"""
+        action = 0
         if train:
             if np.random.rand() <= self.epsilon:
-                # self.epsilon *= 0.9999
-                action = tuple(torch.randint(0, 8, (2,)).tolist())
+                action = torch.randint(0, 65, (1,))
             else:
                 action = self.learned_act(s)
         else:  # in some cases, this can improve the performance.. remove it if poor performances
             action = self.learned_act(s)
-
         return action
 
     def learned_act(self, s):
         """ Act via the policy of the agent, from a given observation s
         it proposes an action a"""
         output = self.model(s.to(device))
-        m = output.view(-1).argmax()
-        # print("m:")
-        # print(m.to("cpu").item())
-        if m == 64:
-            return None
-        else: # Play action
-            i = (m % 8).view(-1, 1).item()
-            j = (m // 8).view(-1, 1).item()
-            # print(i, j)
-            return (i, j)
+        a = output.view(-1).argmax()
+        return a
 
     def reinforce(self, s, n_s, a, r, game_over_):
-        """ This function is the core of the learning algorithm.
-        It takes as an input the current observation s_, the next observation n_s_
-        the action a_ used to move from s_ to n_s_ and the reward r_.
-
+        """ 
+        This function is the core of the learning algorithm.
         Its goal is to learn a policy.
-        """
-        # Two steps: first memorize the observations, second learn from the pool
+        
+        It takes as an input the current observation s_, the next observation 
+        n_s_, the action a_ used to move from s_ to n_s_, and the reward r_.
 
-        # 1) memorize
+        Two steps: first memorize the s, second learn from the pool
+        - Memorize current state given previous state (s), action (a) and current state (n_s)
+        - Learn from the pool
+        """
+
         self.memory.remember([s, n_s, a, r, game_over_])
     
-        # 2) Learn from the pool
-        input_observations = torch.zeros((self.batch_size, 2, 8, 8))
+        # input_s: list of every states used in the learning process here
+        input_s = torch.zeros((self.batch_size, 2, 8, 8))
+
+        # target_q: the predicted future reward for each action
+        # We expect target_q of the base sate to have positive values for 
+        # values (20, 29, 34, 43) and negative for any other action
         target_q = torch.zeros((self.batch_size, 65))
 
         if self.memory.size() < self.batch_size:  # if not enough elements in memory we do nothing
             return 1e5  # unknown (loss)
 
+        # For each sample of state, update target_q matrix of the given state
         samples = self.memory.random_access(self.batch_size)
-
         for i_batch in range(self.batch_size):
             s, next_s, a, r, end = samples[i_batch]  # observation, next_observation, action, reward, game_over
-            input_observations[i_batch] = torch.tensor(s)
-
-            # update the target
-            action_id = 0
-            if a == None:
-                action_id = 64
-            else:
-                (i, j) = a
-                action_id = i + 8 * j
-
-                
+            input_s[i_batch] = torch.tensor(s, dtype=torch.float)
             if end:
-                target_q[i_batch, action_id] = r
+                target_q[i_batch, a] = r
             else:
                 # compute max_a Q(nex_observation, a) using the model
                 y_pred = self.model(torch.tensor(next_s, dtype=torch.float).unsqueeze(0).to(device)).to("cpu")
                 Q_next_observation = torch.max(y_pred)
-                
                 # r + gamma * max_a Q(nex_observation, a)
-                target_q[i_batch, action_id] = r + self.discount * Q_next_observation
-                # if action_id in [20, 29, 34, 43]:
-            # print(action_id, target_q[i_batch, action_id].item())
+                target_q[i_batch, a] = r + self.discount * Q_next_observation
 
         # HINT: Clip the target to avoid exploding gradients.. -- clipping is a bit tighter
         target_q = torch.clip(target_q, -3, 3)
 
-
-        # train the model on the batch
-        input_data = torch.tensor(input_observations) #[input_observations[i] for i in range(self.batch_size)])
+        # Train the model on the batch
+        input_data = torch.tensor(input_s) #[input_s[i] for i in range(self.batch_size)])
         loss = self.train_on_batch(input_data, target_q)
 
         return loss
@@ -184,12 +167,12 @@ class AgentTorch():
         pass
 
 
-def reward_from_signal(signal: Signal):
+def reward_from_signal(signal: Signal, board: Board):
     reward = 0
     if signal is Signal.ILLEGAL_MOVE:
             reward = -1
     elif signal is Signal.VALID_MOVE:
-        reward = 5
+        reward = 1
     else: # Game over
         winner = board.get_winner()
         if winner == 1: # White
@@ -200,9 +183,17 @@ def reward_from_signal(signal: Signal):
             reward = -50
     return reward
 
-def game_over_from_signal(signal: Signal):
+def game_over_from_signal(signal: Signal, board: Board):
     game_over = signal in [Signal.GAME_OVER, Signal.ILLEGAL_MOVE]
     return game_over
+
+def encode_action(a):
+    if a == 64:
+        return None
+    else:
+        i = a % 8
+        j = a // 8
+        return (i, j)
 
 def train(agent: AgentTorch, board: Board, epoch):
     # Number of won games
@@ -230,7 +221,7 @@ def train(agent: AgentTorch, board: Board, epoch):
             action = agent.act(torch.tensor(observation, dtype=torch.float).unsqueeze(0))
             
             # Perform the action
-            observation, signal = board.step(action)
+            observation, signal = board.step(encode_action(action))
             observation = torch.tensor(observation)
 
             # Reward attribution
@@ -268,7 +259,7 @@ def train(agent: AgentTorch, board: Board, epoch):
     output = agent.model(torch_observation)
     print(output.to("cpu"))
     action = agent.act(torch.tensor(observation, dtype=torch.float).unsqueeze(0))
-    observation, signal = board.step(action)
+    observation, signal = board.step(encode_action(action))
 
     black_action = board.sample()
     observation, signal = board.step(black_action)
@@ -278,8 +269,21 @@ def train(agent: AgentTorch, board: Board, epoch):
     print(output.to("cpu"))
 
 
+
+    
+    # if done:
+    # else:
+    #     # compute max_a Q(nex_observation, a) using the model
+    #     y_pred = self.model(torch.tensor(next_s, dtype=torch.float).unsqueeze(0).to(device)).to("cpu")
+    #     Q_next_observation = torch.max(y_pred)
+    #     # r + gamma * max_a Q(nex_observation, a)
+    #     target_q[i_batch, a] = r + self.discount * Q_next_observation
+
+
+
 if __name__ == '__main__':
-    epoch = 2048# 100000
-    board = Board()
-    agent = AgentTorch(batch_size=32)
-    train(agent, board, epoch)
+    # epoch = 2048# 100000
+    # board = Board()
+    # agent = AgentTorch(batch_size=64)
+    tests()
+    # train(agent, board, epoch)

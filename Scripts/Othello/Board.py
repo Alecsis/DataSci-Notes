@@ -32,14 +32,14 @@ class Board():
         self.memory = [(np.copy(self.state), begin_signal)]
         return self.get_observation(), begin_signal
     
-    def get_cell(self, i, j):
-        return self.state[i, j]
+    def get_cell(self, c, l):
+        return self.state[c, l]
 
-    def set_cell(self, i, j, val):
-        self.state[i, j] = val
+    def set_cell(self, c, l, val):
+        self.state[c, l] = val
     
-    def flip_cell(self, i, j):
-        self.state[i, j] = -self.state[i, j]
+    def flip_cell(self, c, l):
+        self.state[c, l] = -self.state[c, l]
 
     def step(self, action):
         # Save state in memory
@@ -56,21 +56,21 @@ class Board():
                 self.changes_player()
                 return Signal.VALID_MOVE
         # Player didn't skip turn, get coordinates
-        (i, j) = action
+        (c, l) = action
         # Check if player didn't move on an occupied cell
-        if self.get_cell(i, j) != 0:
+        if self.get_cell(c, l) != 0:
             return Signal.ILLEGAL_MOVE
         # Get nb of cells flipped by the action
         flips = []
         for (di, dj) in [(0, 1), (1, 1), (1, 0), (1, -1), (0, -1), (-1, -1), (-1, 0), (-1, 1)]:
-            flips += self.get_flips_in_dir(i, j, di, dj)
+            flips += self.get_flips_in_dir(c, l, di, dj)
         # If flips is empty then the move is useless and qualified illegal
         if len(flips) == 0:
             return Signal.ILLEGAL_MOVE
         # If flips is not empty, apply and flip tokens 
-        self.set_cell(i, j, self.player)
-        for (i, j) in flips:
-            self.flip_cell(i, j)
+        self.set_cell(c, l, self.player)
+        for (c, l) in flips:
+            self.flip_cell(c, l)
         # Il none of the players can move, game is over
         self.changes_player()
         if not self.can_player_move():
@@ -96,15 +96,15 @@ class Board():
 
     def get_possible_actions(self):
         # For each empty cell, compute if any move can flip tokens
-        # If move is valid, add coordinates (i, j) in [actions]
+        # If move is valid, add coordinates (c, l) in [actions]
         actions = []
-        for i in range(8):
-            for j in range(8):
-                if self.get_cell(i, j) == 0:
+        for c in range(8):
+            for l in range(8):
+                if self.get_cell(c, l) == 0:
                     for (di, dj) in [(0, 1), (1, 1), (1, 0), (1, -1), (0, -1), (-1, -1), (-1, 0), (-1, 1)]:
-                        _flips = self.get_flips_in_dir(i, j, di, dj)
+                        _flips = self.get_flips_in_dir(c, l, di, dj)
                         if len(_flips) != 0:
-                            actions.append((i, j))
+                            actions.append((c, l))
         return actions
     
     def sample(self):
@@ -115,23 +115,23 @@ class Board():
         # return random.choice(actions)
         return actions[0]
 
-    def get_flips_in_dir(self, i, j, di, dj):
+    def get_flips_in_dir(self, c, l, di, dj):
         # Move a step forward in the direction
-        i += di
-        j += dj
-        # Compute the list of (i, j) to flip
+        c += di
+        l += dj
+        # Compute the list of (c, l) to flip
         flips = []
-        while i >= 0 and i < 8 and j >= 0 and j < 8:
-            cell_id = self.get_cell(i, j)
+        while c >= 0 and c < 8 and l >= 0 and l < 8:
+            cell_id = self.get_cell(c, l)
             if cell_id == -self.player:
-                flips.append((i, j)) # Possible flip
+                flips.append((c, l)) # Possible flip
             elif cell_id == self.player:
                 return flips
             else:
                 return []
             # Move forward
-            i += di
-            j += dj
+            c += di
+            l += dj
         return []
 
     def get_winner(self):
@@ -150,18 +150,20 @@ class Board():
         observation[1] = (self.state == -1)
         return observation
     
-    def render(self):
+    def render(self, state=None):
+        if not state:
+            state = self.state
         print("---" * 8)
-        for j in range(8):
+        for l in range(8):
             line = ""
-            for i in range(8):
-                cell_id = self.get_cell(i, j)
+            for c in range(8):
+                cell_id = state[c, l]
                 if cell_id == 1:
-                    line += " X "
+                    line += "X\t"
                 elif cell_id == -1:
-                    line += " O "
+                    line += "O\t"
                 else:
-                    line += " . "
+                    line += f"{c+8*l}\t"
             print(line)
         print("---" * 8)
 
