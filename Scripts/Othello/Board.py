@@ -163,7 +163,8 @@ class Board():
                 elif cell_id == -1:
                     line += "O\t"
                 else:
-                    line += f"{c+8*l}\t"
+                    line += f".\t"
+                    # line += f"{c+8*l}\t"
             print(line)
         print("---" * 8)
 
@@ -201,3 +202,4 @@ if __name__ == "__main__":
         print("Winner is BLACK: {}/{}".format(white_score, black_score))
     else:
         print("Game is DRAW: {}/{}".format(white_score, black_score))
+        
